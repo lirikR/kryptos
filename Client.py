@@ -119,34 +119,30 @@ def start_client(host="127.0.0.1", port=5000, expected_server_fingerprint=None):
             )
 
             server_public_key_data = client.recv(4096)
+            if not server_public_key_data:
+                ui.log("Nuk u pranua public key nga serveri.", "error")
+                return
             server_fingerprint = key_fingerprint(server_public_key_data)
 
-        if expected_server_fingerprint and server_fingerprint != expected_server_fingerprint:
+        if (expected_server_fingerprint and server_fingerprint != expected_server_fingerprint):
             ui.set_status("Server public key fingerprint nuk perputhet.", "error")
             ui.log(f"Pritur: {expected_server_fingerprint}", "error")
             ui.log(f"Pranuar: {server_fingerprint}", "error")
             return
 
-ui.log(
-    f"Server fingerprint: {server_fingerprint}",
-    "info"
+        ui.log(
+             f"Server fingerprint: {server_fingerprint}",
+            "info"
+        )
 
-)
-
-server_public_key = bytes_to_public_key(
-    server_public_key_data
-)
-
-client.sendall(
-    public_key_to_bytes(client_public_key)
-
-)
-ui.update(
-    "Komunikimi tani eshte i siguruar me RSA encryption.",
-    "success",
-    "Shkembimi i public keys perfundoi me sukses.",
-    "success"
-)
+        server_public_key = bytes_to_public_key(server_public_key_data)
+        client.sendall(public_key_to_bytes(client_public_key))
+        ui.update(
+            "Komunikimi tani eshte i siguruar me RSA encryption.",
+            "success",
+            "Shkembimi i public keys perfundoi me sukses.",
+            "success"
+        )
 
 
 
