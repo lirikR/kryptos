@@ -20,6 +20,9 @@ def public_key_to_bytes(public_key):
 def bytes_to_public_key(key_bytes):
     return serialization.load_pem_public_key(key_bytes)
 
+def key_fingerprint(key_bytes):
+    return hashlib.sha256(key_bytes).hexdigest()[:16]
+
 def encrypt_message(message, public_key):
     return public_key.encrypt(
         message.encode(),
@@ -48,7 +51,7 @@ def send_encrypted(client, message, server_public_key):
 def send_unencrypted(client, message):
     client.sendall(PLAIN_PREFIX + message.encode())
 
-def recive_response(client):
+def receive_response(client):
     encrypted_response = client.recv(4096)
 
     if not encrypted_response:
@@ -56,8 +59,7 @@ def recive_response(client):
 
     return decrypt_message(encrypted_response)
 
-def key_fingerprint(key_bytes):
-    return hashlib.sha256(key_bytes).hexdigest()[:16]
+
 
 def resolve_prompt(ui, message):
     value = ui.prompt(message,INACTIVITY_SECONDS)
@@ -75,11 +77,16 @@ def handle_inactive_mode(ui):
         "Je aktualisht joaktiv. Seanca eshte ne sleep mode.",
         "Inactive",
         "Nuk pati input per 60 sekonda.",
-        "Warning"
+        "warning"
     )
 
     while True:
         choice = ui.prompt("Shkruaj resume per vazhdim ose exit per dalje")
+
+        if choice is None:
+            continue
+
+        choice = choice.lower()
 
         if choice in ("resume","r"):
             ui.update(
@@ -88,15 +95,16 @@ def handle_inactive_mode(ui):
                 "Seanca doli nga sleep mode.",
                 "success"
             )
+
             return True
 
         if choice in ("exit","e"):
             return False
 
-        ui.log("Opsion jo valid. Shkruaj resume ose exit."," Warning")
+        ui.log("Opsion jo valid. Shkruaj resume ose exit.", "warning")
 
 
-    def start_client(host="127.0.0.1", port=5000, expected_server_fingerprint=None):
+def start_client(host="127.0.0.1", port=5000, expected_server_fingerprint=None):
         ui=ClientCli()
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -118,6 +126,27 @@ def handle_inactive_mode(ui):
             ui.log(f"Pritur: {expected_server_fingerprint}", "error")
             ui.log(f"Pranuar: {server_fingerprint}", "error")
             return
+
+ui.log(
+    f"Server fingerprint: {server_fingerprint}",
+    "info"
+
+)
+
+server_public_key = bytes_to_public_key(
+    server_public_key_data
+)
+
+client.sendall(
+    public_key_to_bytes(client_public_key)
+
+)
+ui.update(
+    "Komunikimi tani eshte i siguruar me RSA encryption.",
+    "success",
+    "Shkembimi i public keys perfundoi me sukses.",
+    "success"
+)
 
 
 
