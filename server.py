@@ -41,3 +41,12 @@ def decrypt_message(encrypted_message):
         )
     )
     return decrypted.decode()
+
+PLAIN_PREFIX = b"plain:"
+
+
+def read_message(data):
+    if data.startswith(PLAIN_PREFIX):
+        return data[len(PLAIN_PREFIX):].decode(), False
+
+    return decrypt_message(data), True
