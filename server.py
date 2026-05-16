@@ -102,3 +102,61 @@ def key_fingerprint(key_bytes):
 
 def key_preview(key_bytes):
     return key_bytes.decode().replace("\n", "")[:64] + "..."
+
+
+# ========= commit 4th: client key exchange and responses =========
+def handle_client(client_socket, client_address, ui):
+    label = client_label(client_address)
+    ui.log(f"Klient i ri u lidh: {label}", "pending")
+    set_client(client_address, None, ui)
+
+    try:
+        client_socket.sendall(public_key_to_bytes(server_public_key))
+        ui.log(f"Public key i serverit u dergua te {label}.", "pending")
+
+        client_key_data = client_socket.recv(4096)
+        client_public_key = bytes_to_public_key(client_key_data)
+        set_client(client_address, client_public_key, ui)
+
+        ui.log(f"Public key i klientit {label} u pranua.", "success")
+        ui.log(f"Kanali RSA me {label} eshte aktiv.", "success")
+
+        while True:
+            try:
+                encrypted_message = client_socket.recv(4096)
+
+                if not encrypted_message:
+                    ui.log(f"Klienti {label} u shkeput.", "warning")
+                    break
+
+                message, encrypted = read_message(encrypted_message)
+                ui.divider("Mesazh i ri")
+                if encrypted:
+                    ui.log(f"Mesazh i dekriptuar nga {label}: {message}")
+                else:
+                    ui.log(f"Mesazh pa encryption nga {label}: {message}", "warning")
+
+                if message.lower() == "exit":
+                    ui.log(f"Klienti {label} doli nga aplikacioni.", "warning")
+                    break
+
+                if message.lower() == "ping":
+                    response = "Lidhja me serverin eshte aktive."
+                else:
+                    response = "Serveri e pranoi mesazhin: " + message
+
+                encrypted_response = encrypt_message(response, client_public_key)
+                client_socket.sendall(encrypted_response)
+                ui.log(f"Pergjigje e enkriptuar u dergua te {label}.", "success")
+
+            except Exception as e:
+                ui.log(f"Gabim gjate komunikimit me {label}: {e}", "error")
+                break
+
+    except Exception as e:
+        ui.log(f"Gabim gjate lidhjes me {label}: {e}", "error")
+
+    finally:
+        remove_client(client_address, ui)
+        client_socket.close()
+        ui.log(f"Lidhja me klientin {label} u mbyll.", "info")
