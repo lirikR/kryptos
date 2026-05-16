@@ -191,3 +191,175 @@ class ClientCli:
 
         print()
         return None
+    
+
+class ServerCli(ClientCli):
+    def __init__(self, host, port):
+        os.system("")
+        self.lock = threading.RLock()
+        self.interactive = sys.stdout.isatty()
+        self.width = max(64, min(120, shutil.get_terminal_size((100, 20)).columns))
+        self.banner = load_ascii_art("ascii_server.txt")
+        self.events = deque(maxlen=14)
+        self.status = "Serveri po pret kliente."
+        self.status_level = "success"
+        self.host = host
+        self.port = port
+        self.clients = 0
+        self.server_key = None
+        self.client_keys = []
+        self.panel_title = None
+        self.panel_body = None
+        self.colors_enabled = self.interactive and "NO_COLOR" not in os.environ
+        self.render()
+
+    def set_clients(self, count, client_keys=None):
+        with self.lock:
+            self.clients = count
+            if client_keys is not None:
+                self.client_keys = client_keys
+            self.render()
+
+    def set_client_keys(self, client_keys):
+        with self.lock:
+            self.client_keys = client_keys
+            self.render()
+
+    def set_server_key(self, server_key):
+        with self.lock:
+            self.server_key = server_key
+            self.render()
+
+    def set_status(self, message, level="info"):
+        with self.lock:
+            self.status = message
+            self.status_level = level
+            self.render()
+
+    def update(self, status, status_level, event, event_level="info"):
+        with self.lock:
+            self.status = status
+            self.status_level = status_level
+            self.events.append((event_level, event))
+            self.render()
+
+    def log(self, message, level="info"):
+        with self.lock:
+            self.events.append((level, message))
+            self.render()
+
+    def divider(self, title):
+        with self.lock:
+            self.events.append(("divider", title))
+            self.render()
+
+    def render(self):
+        self.clear()
+        print(self.paint(self.banner, Colors.BOLD + Colors.CYAN))
+        self.section("Server")
+        print(f"  {self.badge(self.status_level)} {self.status}")
+        print(f"  {self.paint('Adresa:', Colors.BOLD)} {self.host}:{self.port}")
+        if self.server_key:
+            print(f"  {self.paint('Server key:', Colors.BOLD)} {self.server_key}")
+        print(f"  {self.paint('Kliente aktive:', Colors.BOLD)} {self.clients}")
+        print()
+        self.section("Client Public Keys")
+
+        if self.client_keys:
+            for public_key in self.client_keys:
+                print(f"  {self.badge('info')} {public_key}")
+        else:
+            print(self.paint("  Nuk ka public keys te klienteve ende.", Colors.DIM))
+
+        print()
+        self.section("Aktiviteti")
+
+        if self.events:
+            for level, message in self.events:
+                if level == "divider":
+                    self.activity_divider(message)
+                    continue
+
+                print(f"  {self.badge(level)} {message}")
+        else:
+            print(self.paint("  Nuk ka aktivitet ende.", Colors.DIM))
+
+
+class MitmCli(ClientCli):
+    def __init__(self, listen_host, listen_port, target_host, target_port):
+        os.system("")
+        self.lock = threading.RLock()
+        self.interactive = sys.stdout.isatty()
+        self.width = max(64, min(120, shutil.get_terminal_size((100, 20)).columns))
+        self.banner = "RSA TRAFFIC INSPECTOR"
+        self.events = deque(maxlen=16)
+        self.status = "Proxy po pret kliente."
+        self.status_level = "pending"
+        self.listen_host = listen_host
+        self.listen_port = listen_port
+        self.target_host = target_host
+        self.target_port = target_port
+        self.connections = 0
+        self.panel_title = None
+        self.panel_body = None
+        self.colors_enabled = self.interactive and "NO_COLOR" not in os.environ
+        self.render()
+
+    def set_connections(self, count):
+        with self.lock:
+            self.connections = count
+            self.render()
+
+    def set_status(self, message, level="info"):
+        with self.lock:
+            self.status = message
+            self.status_level = level
+            self.render()
+
+    def update(self, status, status_level, event, event_level="info"):
+        with self.lock:
+            self.status = status
+            self.status_level = status_level
+            self.events.append((event_level, event))
+            self.render()
+
+    def log(self, message, level="info"):
+        with self.lock:
+            self.events.append((level, message))
+            self.render()
+
+    def divider(self, title):
+        with self.lock:
+            self.events.append(("divider", title))
+            self.render()
+
+    def render(self):
+        self.clear()
+        print(self.paint(self.banner, Colors.BOLD + Colors.CYAN))
+        self.section("Man In The Middle")
+        print(f"  {self.badge(self.status_level)} {self.status}")
+        print(f"  {self.paint('Degjon:', Colors.BOLD)} {self.listen_host}:{self.listen_port}")
+        print(f"  {self.paint('Forward:', Colors.BOLD)} {self.target_host}:{self.target_port}")
+        print(f"  {self.paint('Client demo:', Colors.BOLD)} python client.py --mitm")
+        print(f"  {self.paint('Lidhje aktive:', Colors.BOLD)} {self.connections}")
+        print()
+        self.section("Traffic")
+
+        if self.events:
+            for level, message in self.events:
+                if level == "divider":
+                    self.activity_divider(message)
+                    continue
+
+                print(f"  {self.badge(level)} {message}")
+        else:
+            print(self.paint("  Nuk ka traffic ende.", Colors.DIM))
+
+
+def load_ascii_art(file_name):
+    path = Path(__file__).with_name(file_name)
+
+    if not path.exists():
+        return "RSA SECURE MESSAGING SYSTEM"
+
+    return path.read_text(encoding="utf-8").rstrip()
