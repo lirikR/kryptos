@@ -103,8 +103,6 @@ def key_fingerprint(key_bytes):
 def key_preview(key_bytes):
     return key_bytes.decode().replace("\n", "")[:64] + "..."
 
-
-# ========= commit 4th: client key exchange and responses =========
 def handle_client(client_socket, client_address, ui):
     label = client_label(client_address)
     ui.log(f"Klient i ri u lidh: {label}", "pending")
@@ -160,3 +158,29 @@ def handle_client(client_socket, client_address, ui):
         remove_client(client_address, ui)
         client_socket.close()
         ui.log(f"Lidhja me klientin {label} u mbyll.", "info")
+
+def start_server():
+    host = "127.0.0.1"
+    port = 5000
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((host, port))
+    server.listen(5)
+
+    ui = ServerCli(host, port)
+    ui.set_server_key(key_fingerprint(public_key_to_bytes(server_public_key)))
+    ui.log("Serveri u startua dhe po pret kliente.", "success")
+
+    while True:
+        client_socket, client_address = server.accept()
+
+        thread = threading.Thread(
+            target=handle_client,
+            args=(client_socket, client_address, ui)
+        )
+        thread.daemon = True
+        thread.start()
+
+
+if __name__ == "__main__":
+    start_server()
