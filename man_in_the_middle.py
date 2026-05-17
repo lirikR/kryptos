@@ -7,6 +7,7 @@ from cli_interface import MitmCli
 
 PLAIN_PREFIX = b"plain:"
 
+
 class TrafficInspector:
     @staticmethod
     def inspect(data, direction):
@@ -46,6 +47,7 @@ class TrafficInspector:
         fingerprint = hashlib.sha256(data).hexdigest()[:16]
         preview = data.decode(errors="replace").replace("\n", "")[:64]
         return f"{fingerprint} | {preview}..."
+
 
 class ManInTheMiddle:
     def __init__(self, listen_host, listen_port, target_host, target_port):
@@ -114,3 +116,63 @@ class ManInTheMiddle:
         self.close(server_socket)
         self.change_connections(-1)
         self.ui.log(f"Lidhja proxy u mbyll: {label}", "info")
+
+    def forward(self, source, target, direction):
+        try:
+            while True:
+                data = source.recv(4096)
+
+                if not data:
+                    break
+
+                inspected = TrafficInspector.inspect(data, direction)
+
+                if inspected:
+                    level, summary = inspected
+                    if direction == "client -> server" and not data.startswith(b"-----BEGIN PUBLIC KEY-----"):
+                        self.ui.divider("Mesazh i ri")
+
+                    self.ui.log(summary, level)
+
+                target.sendall(data)
+
+        except OSError as e:
+            self.ui.log(f"{direction}: lidhja u nderpre ({e})", "warning")
+
+        finally:
+            self.close(source)
+            self.close(target)
+
+    def change_connections(self, amount):
+        with self.lock:
+            self.active_connections += amount
+            self.ui.set_connections(self.active_connections)
+
+    @staticmethod
+    def close(sock):
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--listen-host", default="127.0.0.1")
+    parser.add_argument("--listen-port", type=int, default=5001)
+    parser.add_argument("--target-host", default="127.0.0.1")
+    parser.add_argument("--target-port", type=int, default=5000)
+    args = parser.parse_args()
+
+    proxy = ManInTheMiddle(
+        args.listen_host,
+        args.listen_port,
+        args.target_host,
+        args.target_port
+    )
+    proxy.start()
