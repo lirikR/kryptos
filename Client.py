@@ -124,29 +124,136 @@ def start_client(host="127.0.0.1", port=5000, expected_server_fingerprint=None):
                 return
             server_fingerprint = key_fingerprint(server_public_key_data)
 
-        if (expected_server_fingerprint and server_fingerprint != expected_server_fingerprint):
-            ui.set_status("Server public key fingerprint nuk perputhet.", "error")
-            ui.log(f"Pritur: {expected_server_fingerprint}", "error")
-            ui.log(f"Pranuar: {server_fingerprint}", "error")
-            return
+            if (expected_server_fingerprint and server_fingerprint != expected_server_fingerprint):
+                ui.set_status("Server public key fingerprint nuk perputhet.", "error")
+                ui.log(f"Pritur: {expected_server_fingerprint}", "error")
+                ui.log(f"Pranuar: {server_fingerprint}", "error")
+                return
 
-        ui.log(
-             f"Server fingerprint: {server_fingerprint}",
-            "info"
-        )
+            ui.log(
+                f"Server fingerprint: {server_fingerprint}",
+                "info"
+            )
 
-        server_public_key = bytes_to_public_key(server_public_key_data)
-        client.sendall(public_key_to_bytes(client_public_key))
-        ui.update(
-            "Komunikimi tani eshte i siguruar me RSA encryption.",
-            "success",
-            "Shkembimi i public keys perfundoi me sukses.",
-            "success"
-        )
+            server_public_key = bytes_to_public_key(server_public_key_data)
+            client.sendall(public_key_to_bytes(client_public_key))
+            ui.update(
+                "Komunikimi tani eshte i siguruar me RSA encryption.",
+                "success",
+                "Shkembimi i public keys perfundoi me sukses.",
+                "success"
+            )
+            while True:
+                choice = resolve_prompt(ui, "Zgjedh nje opsion")
+
+                if choice is None:
+                    send_encrypted(client, "exit", server_public_key)
+                    ui.log("Seanca u mbyll nga sleep mode.", "warning")
+                    break
+
+                if choice == "1":
+                    message = resolve_prompt(ui, "Shkruaj mesazhin")
+
+                    if message is None:
+                        send_encrypted(client, "exit", server_public_key)
+                        ui.log("Seanca u mbyll nga sleep mode.", "warning")
+                        break
+
+                    if message == "":
+                        ui.log("Mesazhi nuk mund te jete i zbrazet.", "warning")
+                        continue
+
+                    ui.divider("Mesazh i enkriptuar")
+                    send_encrypted(client, message, server_public_key)
+                    ui.log("Mesazhi u enkriptua dhe u dergua te serveri.", "success")
+
+                    response = receive_response(client)
+
+                    if response is None:
+                        ui.set_status("Serveri e mbylli lidhjen.", "error")
+                        break
+
+                    ui.log("Pergjigja nga serveri: " + response)
+
+                    if response.startswith("Klienti nuk dergoi"):
+                        break
+
+                elif choice == "2":
+                    message = resolve_prompt(ui, "Shkruaj mesazhin pa encryption")
+
+                    if message is None:
+                        send_encrypted(client, "exit", server_public_key)
+                        ui.log("Seanca u mbyll nga sleep mode.", "warning")
+                        break
+
+                    if message == "":
+                        ui.log("Mesazhi nuk mund te jete i zbrazet.", "warning")
+                        continue
+
+                    ui.divider("Mesazh pa encryption")
+                    send_unencrypted(client, message)
+                    ui.log("Mesazhi u dergua pa encryption per demonstrim.", "warning")
+
+                    response = receive_response(client)
+
+                    if response is None:
+                        ui.set_status("Serveri e mbylli lidhjen.", "error")
+                        break
+
+                    ui.log("Pergjigja nga serveri: " + response)
+
+                    if response.startswith("Klienti nuk dergoi"):
+                        break
+
+                elif choice == "3":
+                    ui.show_panel(
+                        "Public key i klientit",
+                        public_key_to_bytes(client_public_key).decode()
+                    )
+
+                elif choice == "4":
+                    ui.divider("Test lidhjeje")
+                    send_encrypted(client, "ping", server_public_key)
+
+                    response = receive_response(client)
+
+                    if response is None:
+                        ui.set_status("Serveri nuk ktheu pergjigje.", "error")
+                        break
+
+                    ui.log("Pergjigja nga serveri: " + response, "success")
+
+                elif choice == "5":
+                    ui.divider("Dalje")
+                    send_encrypted(client, "exit", server_public_key)
+                    ui.log("Duke dale nga aplikacioni...", "warning")
+                    break
+
+                else:
+                    ui.log("Opsion jo valid. Provo perseri.", "warning")
+
+        except ConnectionRefusedError:
+            ui.set_status("Nuk mund te lidhet me serverin.", "error")
+            ui.log("Kontrollo a eshte startuar server.py", "warning")
+
+        except Exception as e:
+            ui.set_status("Gabim gjate ekzekutimit.", "error")
+            ui.log(str(e), "error")
+
+        finally:
+            client.close()
+            ui.log("Lidhja u mbyll me sukses.")
 
 
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument("--mitm", action="store_true")
+    parser.add_argument("--server-fingerprint")
+    args = parser.parse_args()
 
+    if args.mitm:
+        args.port = 5001
 
-
-
-
+    start_client(args.host, args.port, args.server_fingerprint)
