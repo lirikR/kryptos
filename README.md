@@ -1,4 +1,4 @@
-# secureCHAT
+# kryptos
 
 Projekt CLI per komunikim klient-server me RSA encryption.
 
